@@ -3,25 +3,47 @@ version: '3'
 volumes:
   pg_data:
   static:
+  media:
 
 services:
   db:
     image: postgres:13
+    env_file: .env
     volumes:
       - pg_data:/var/lib/postgresql/data
+
   backend:
     build: ./backend/
     env_file: .env
-  frontend:
-    env_file: .env
-    build: ./frontend/
-    command: cp -r /app/build/. /static/
     volumes:
+      - static:/backend_static
+      - media:/app/media
+    depends_on:
+      - db
+
+  frontend_build:
+    image: node:18
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
       - static:/static
+    command: sh -c "npm ci && npm run build && cp -r /app/build/. /static/"
+
+  frontend:
+    build: ./frontend/
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - frontend_build
+
   gateway:
     build: ./nginx/
-    env_file: .env
     ports:
       - 9000:80
     volumes:
       - static:/static
+      - media:/media
+    depends_on:
+      - backend
+      - frontend
